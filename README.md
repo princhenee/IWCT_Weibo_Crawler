@@ -26,7 +26,7 @@ This repository designing a sina weibo crawler is dedicated to the research prog
 ###IWCT_Weibo_Crawler Provides
 1. WEIBO Login Simulator
 
-2. Multi-Threading Extraction Framework
+2. Distributed/Multi-Threading Extraction Framework
 
 3. **Extraction Task** Interface(user profile/social network/weibos etc.)
 
