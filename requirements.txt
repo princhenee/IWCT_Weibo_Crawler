@@ -1,0 +1,4 @@
+rsa
+redis
+git+https://github.com/scrapy/scrapy#egg=Scrapy
+

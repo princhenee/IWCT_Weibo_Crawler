@@ -5,9 +5,19 @@ This repository designing a sina weibo crawler is dedicated to the research prog
 
 =======
 
+#Requirements:
+
+#* Scrapy >= 0.14
+#* redis-py (tested on 2.4.9)
+#* redis server (tested on 2.4-2.6)
 
 
-###IWCT_Weibo_Crawler的功能
+# Installation
+    $ sudo apt-get install redis-server
+    $ sudo pip install requirements.txt
+
+
+### IWCT_Weibo_Crawler的功能
 1. 微博模拟登录
 
 2. 分布式/多线程抓取框架
@@ -23,7 +33,7 @@ This repository designing a sina weibo crawler is dedicated to the research prog
 
 
 
-###IWCT_Weibo_Crawler Provides
+### IWCT_Weibo_Crawler Provides
 1. WEIBO Login Simulator
 
 2. Distributed/Multi-Threading Extraction Framework
@@ -39,5 +49,5 @@ This repository designing a sina weibo crawler is dedicated to the research prog
 
 
 
-###How to Use IWCT_Weibo_Crawler
+### How to Use IWCT_Weibo_Crawler
 
