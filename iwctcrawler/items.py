@@ -9,9 +9,19 @@ class UserProfileItem(Item):
     # define the fields for your item here like:
     # name = Field()
     user_id     =  Field()
-    screen_name =  Field()
+    page_id     =  Field()             #indicate detailed page sequence 
+    pid         =  Field()             #help construct url to visit
+    screen_name =  Field()             #nickname
+    sex         =  Field()
     description =  Field()
     created_at  =  Field()
     location    =  Field()
     province    =  Field()
     city        =  Field()
+
+class WeiboItem(Item):
+    user_id       =  Field()
+    weibo_id      =  Field()
+    created_time  =  Field()
+    content       =  Field()
+    at_people     =  Field()

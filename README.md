@@ -7,9 +7,9 @@ This repository designing a sina weibo crawler is dedicated to the research prog
 
 #Requirements:
 
-#* Scrapy >= 0.14
-#* redis-py (tested on 2.4.9)
-#* redis server (tested on 2.4-2.6)
+* Scrapy >= 0.14
+* redis-py (tested on 2.4.9)
+* redis server (tested on 2.4-2.6)
 
 
 # Installation
