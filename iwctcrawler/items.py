@@ -1,3 +1,4 @@
+#coding=utf-8
 # Define here the models for your scraped items
 #
 # See documentation in:
@@ -8,16 +9,26 @@ from scrapy.item import Item, Field
 class UserProfileItem(Item):
     # define the fields for your item here like:
     # name = Field()
+
     user_id     =  Field()
-    page_id     =  Field()             #indicate detailed page sequence 
-    pid         =  Field()             #help construct url to visit
+
+    # 基本信息
     screen_name =  Field()             #nickname
     sex         =  Field()
     description =  Field()
     created_at  =  Field()
     location    =  Field()
-    province    =  Field()
-    city        =  Field()
+    birthday    =  Field()
+
+    # 工作信息
+    company     =  Field()
+
+    # 教育信息
+    university  =  Field()
+
+    # 标签信息
+    tags        =  Field()
+
 
 class WeiboItem(Item):
     user_id       =  Field()

@@ -1,0 +1,9 @@
+
+sel.xpath('/html/script/text()').re(r'(\{.*[<!-- ]'+u"个人基本信息"+r'[ -->].*\})')
+
+# regex to get user info
+json.loads(sel.xpath('/html/script/text()').re(r'(\{.*"domid":"Pl_Official_LeftInfo__26".*\"html\"\:.*\})')[0])["html"]
+
+# using BeautifulSoup to get dict attributes
+print mysoup.findAll('div',{"class":"pf_item clearfix"})[1].find('div',{'class':"con"}).string
+
