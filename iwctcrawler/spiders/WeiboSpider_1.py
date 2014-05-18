@@ -12,7 +12,6 @@ from scrapy.contrib.spiders import CrawlSpider,Rule
 from scrapy.selector import Selector
 from iwctcrawler.items import UserProfileItem
 import re, json
-from pyquery import PyQuery as pq
 from iwctcrawler.query_construction import QueryFactory
 from lxml.html import tostring
 from iwctcrawler.sina.weibo import Weibo
@@ -90,11 +89,14 @@ class WeiboSpider(Spider):
                 self.logined = True
 
                 #mainpage_url = QueryFactory.mainpage_query(user_id)
-                # in this debug period, we apply a specified user_id for test '3756315403'
-                trypage_url = QueryFactory.mainpage_query('3756315403')
-                id_toCrawl = '3756315403'
-                mainpage_request = Request(url=trypage_url,callback=self.mainpage_parse,meta={'user_id':id_toCrawl})
-                yield mainpage_request
+                # in this debug period, we apply a specified list of user_ids for test
+                id_toCrawl_list = ['3756315403','1018794373','1023892974','1031682077','1031827884',\
+                                   '1016130663','1015699074','1016439911','1026341455','1028029113']
+                for id_toCrawl in id_toCrawl_list:
+                    trypage_url = QueryFactory.mainpage_query(id_toCrawl)
+                    mainpage_request = Request(url=trypage_url,callback=self.mainpage_parse,meta={'user_id':id_toCrawl})
+                    yield mainpage_request
+
             else:
                 self.log('login failed: errno=%s, reason=%s' % (data.get('errno', ''), data.get('reason', '')))
 
@@ -107,26 +109,50 @@ class WeiboSpider(Spider):
             login_user['login_user_id']     =  self.get_property(response,"uid")
             login_user['page_id']           =  self.get_property(response,"page_id")
             login_user['pid']               =  self.get_property(response,"pid")
-            print login_user
+            print '\n',login_user,'\n'
+
             login_user_profile_url = QueryFactory.info_query(login_user['page_id'],login_user['pid'])
             request = Request(url=login_user_profile_url,callback=self.login_user_info_parse,meta={'login_user':login_user})
             yield request
+
         else:
             yield self.start_requests()
 
     # parse login_user_info_parse
     def login_user_info_parse(self,response):
         #inspect_response(response,self)
+        user_profile_translation = {
+                        u"性别"      :    'sex',
+                        u"简介"      :    'description',
+                        u"注册时间"  :    'signed_time',
+                        u"所在地"    :    'location',
+                        u"生日"      :    'birthday',
+                        
+                        u"公司"      :    'company',
+
+                        u"大学"      :    'university',
+
+                        u"标签"      :    'personal_tags'
+                       }
+
         if response:
             login_user = response.meta['login_user']
             user = UserProfileItem()
-
+            # fulfill the user Item
             user['user_id']          =  self.get_property(response,"oid")
             user['screen_name']      =  self.get_property(response,"onick")
 
-            self.get_userinfo_by_html(response)
+            user_tags_dict           =  self.get_userinfo_by_html(response)
 
-            print user
+            for property_name in user_profile_translation:
+                user[user_profile_translation[property_name]] = user_tags_dict.get(property_name,'')
+
+            print '\n\nUser Profile:\n'
+            for user_item in dict(user).items():
+                print '\t',user_item[0],' : ',user_item[1]
+
+            print "\n\n"
+
             user_weibo_url = QueryFactory.weibo_query(login_user['page_id'],login_user['pid'])
             request = Request(url=user_weibo_url,callback=self.user_weibo_parse,meta={'user_item':user})
         else:
@@ -135,6 +161,8 @@ class WeiboSpider(Spider):
     # parse weibo page
     def user_weibo_parse(self,response):
         pass
+
+
 
     # get property value from the user homepage
     def get_property(self,response,property_name):
@@ -148,13 +176,42 @@ class WeiboSpider(Spider):
     def get_userinfo_by_html(self,response):
         #inspect_response(response,self)
         selector = Selector(response)
+        tags_dict  =  {}
 
+        # extract the html script block containing personal info
         basic_info_block = selector.xpath('/html/script/text()').re(r'(\{.*\"domid\"\:\"Pl_Official_LeftInfo__26\".*\})')[0]
         basic_info_block_html = json.loads(basic_info_block)['html']
         script_part_soup = BeautifulSoup(basic_info_block_html)
 
-        print "\n\nHERE!!!!!!!!!!!!length:",len(script_part_soup.div),"\n\n"
-        for xterm in script_part_soup.findAll('div',{"class":"pf_item clearfix"}):
-            print '\t',xterm.contents
+        print "\n\n"
+        # decompose the user profile html block into tags like 
+        #     property_name     : u"生日"
+        #     property_content  : u"1990年04月19日"
+        for record_line in script_part_soup.findAll('div',{"class":"pf_item clearfix"}):
+            property_name      =    record_line.find('div',{"class":"label S_txt2"}).string
+            property_content   =    record_line.find('div',{"class":"con"})
+            # return a list of tags when meeting tags info
+            if property_content != None:
+                if not property_content.string:
+                    property_content =  record_line.find('div',{"class":"con"}).a.string
+                    if not property_content:
+                        tags_elements    = record_line.find('div',{"class":"con"}).findAll('span',{"node-type":"tag"})
+                        property_content = ''
+                        for tags_elem in tags_elements:
+                            property_content = property_content + tags_elem.string + ' '	
+                    else:
+                        property_content = property_content.strip()
+                # return the property content of unicode
+                else:
+                    property_content  = property_content.string.strip()
+                # set content empty if no property_content with class "con" is matched
+            else:
+                property_content  = '' 
+
+            print '\t',property_name," : ",property_content
+            tags_dict[property_name] = property_content
+
+        print "\n\n"
+        return tags_dict
 
 

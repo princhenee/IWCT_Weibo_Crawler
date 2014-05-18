@@ -50,4 +50,6 @@ This repository designing a sina weibo crawler is dedicated to the research prog
 
 
 ### How to Use IWCT_Weibo_Crawler
-
+* run command
+**$ scrapy crawl weibospider ** on your console
+* under current directory

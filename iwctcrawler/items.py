@@ -13,21 +13,21 @@ class UserProfileItem(Item):
     user_id     =  Field()
 
     # 基本信息
-    screen_name =  Field()             #nickname
-    sex         =  Field()
-    description =  Field()
-    created_at  =  Field()
-    location    =  Field()
-    birthday    =  Field()
+    screen_name   =  Field()             #nickname
+    sex           =  Field()
+    description   =  Field()
+    signed_time   =  Field()
+    location      =  Field()
+    birthday      =  Field()
 
     # 工作信息
-    company     =  Field()
+    company       =  Field()
 
     # 教育信息
-    university  =  Field()
+    university    =  Field()
 
     # 标签信息
-    tags        =  Field()
+    personal_tags =  Field()
 
 
 class WeiboItem(Item):
