@@ -31,8 +31,15 @@ class UserProfileItem(Item):
 
 
 class WeiboItem(Item):
-    user_id       =  Field()
-    weibo_id      =  Field()
-    created_time  =  Field()
-    content       =  Field()
-    at_people     =  Field()
+
+    user_id            =  Field()
+    weibo_id           =  Field()
+    created_time       =  Field()
+    content            =  Field()
+    app_source         =  Field()
+
+
+    # retweet status
+    isRetweetOrNot     =  Field()
+    retweetFromUser    =  Field()
+    retweetFromWeibo   =  Field()

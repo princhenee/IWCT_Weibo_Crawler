@@ -7,3 +7,8 @@ json.loads(sel.xpath('/html/script/text()').re(r'(\{.*"domid":"Pl_Official_LeftI
 # using BeautifulSoup to get dict attributes
 print mysoup.findAll('div',{"class":"pf_item clearfix"})[1].find('div',{'class':"con"}).string
 
+# 3 urls to extract weibos json data
+http://weibo.com/p/aj/mblog/mbloglist?id=1005051023892974&page=2
+http://weibo.com/p/aj/mblog/mbloglist?id=1005051023892974&page=2&pre_page=2&pagebar=0
+http://weibo.com/p/aj/mblog/mbloglist?id=1005051023892974&page=2&pre_page=2&pagebar=1
+
