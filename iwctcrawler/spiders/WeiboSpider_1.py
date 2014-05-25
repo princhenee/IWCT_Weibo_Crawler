@@ -240,25 +240,25 @@ class WeiboSpider(Spider):
 
 
                 # load creatTime
-                weibo_time_block  =  weibo.findAll('a',{'class':'S_link2 WB_time','node-type':'feed_list_item_date'},limit=1)[0]
+                weibo_time_block  =  weibo.findAll('a',{'class':'S_link2 WB_time','node-type':'feed_list_item_date'},limit=1)
                 if weibo_time_block:
-                    weibo_creat_time  =  weibo_time_block.get('title')
+                    weibo_creat_time  =  weibo_time_block[0].get('title')
                 else:
                     weibo_creat_time  =  ''
                 print ' Weibo[',str(i),'] creat at: ',weibo_creat_time,'\n'
 
 
                 # load sourceApp
-                weibo_source_block  =  weibo.findAll('a',{'class':'S_link2','action-type':'app_source'},limit=1)[0]
+                weibo_source_block  =  weibo.findAll('a',{'class':'S_link2','action-type':'app_source'},limit=1)
                 if weibo_source_block:
-                    weibo_app_source  =  weibo_source_block.string
+                    weibo_app_source  =  weibo_source_block[0].string
                 else:
                     weibo_app_source  =  ''
                 print ' Weibo[',str(i),'] app_source: ',weibo_app_source,'\n\n'
 
 
                 # load retweeted weibo if exists
-                weibo_retweet_block= weibo.findAll('div',{'node-type':'feed_list_forwardContent'},limit=1)[0]
+                weibo_retweet_block= weibo.findAll('div',{'node-type':'feed_list_forwardContent'},limit=1)
                 if weibo_retweet_block:
                     pass
                 else:
