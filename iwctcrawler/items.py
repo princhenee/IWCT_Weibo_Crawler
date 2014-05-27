@@ -40,6 +40,17 @@ class WeiboItem(Item):
 
 
     # retweet status
-    isRetweetOrNot     =  Field()
-    retweetFromUser    =  Field()
+    isRetweet          =  Field()
+    retweetFromUserId  =  Field()
+    retweetFromUserNick=  Field()
     retweetFromWeibo   =  Field()
+
+    # popularity issues
+    # these terms are 0 except
+    # when this weibo is original
+    # which means isRetweet = 0
+    num_supports       =  Field()
+    num_comments       =  Field()
+    num_retweets       =  Field()
+
+
