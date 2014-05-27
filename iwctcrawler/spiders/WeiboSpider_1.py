@@ -98,6 +98,8 @@ class WeiboSpider(Spider):
                 id_toCrawl = self.id_toCrawl_list.pop()
                 id_toCrawl = self.id_toCrawl_list.pop()
                 id_toCrawl = self.id_toCrawl_list.pop()
+                id_toCrawl = self.id_toCrawl_list.pop()
+                id_toCrawl = self.id_toCrawl_list.pop()
 
                 trypage_url = QueryFactory.mainpage_query(id_toCrawl)
                 mainpage_request = Request(url=trypage_url,callback=self.mainpage_parse,meta={'user_id':id_toCrawl})
@@ -157,7 +159,7 @@ class WeiboSpider(Spider):
         for property_name in user_profile_translation:
             user[user_profile_translation[property_name]] = user_tags_dict.get(property_name,'')
 
-        print '\n\nUser Profile:\n'
+        print '\n\n User Profile:\n'
         for user_item in dict(user).items():
             print '\t',user_item[0],' : ',user_item[1]
 
@@ -178,14 +180,14 @@ class WeiboSpider(Spider):
             self.start_requests()
 
         # pares the current js response
-        self.user_weibo_parse(response)
+        #self.user_weibo_parse(response)
 
         login_user       =  response.meta['login_user']
         # load response in json form
         html_block_soup  =  self.json_load_response(response)
 
         # get the tag containing the max num of page
-        page_list_tag    =  html_block_soup.find('div',{'class':'W_pages_layer S-FIXED'})
+        page_list_tag    =  html_block_soup.find('div',{'action-type':'feed_list_page_morelist'})
         if page_list_tag:
             total_num_pages  =  int(re.search(r'\d+',page_list_tag.a.string).group(0))
         else:
@@ -194,13 +196,18 @@ class WeiboSpider(Spider):
         # warp weibo page urls to crawl
         weibo_page_urls       =  self.wrap_weibo_pages_urls( page_id=login_user['page_id'], num_page=total_num_pages )
 
+        print '\n\n Number of user weibos pages: ',total_num_pages,'\n\n'
 
         # test part weibo parser
-        user_weibo_page_url   =  QueryFactory.weibo_page_num_query(page_id = login_user['page_id'], page_num=2 )
+        user_weibo_page_url   =  QueryFactory.weibo_js_query(page_id = login_user['page_id'], page_num=2 )[0]
 
         # first request to get the total number of user weibos' pages
-        request = Request(url=user_weibo_page_url,callback=self.user_weibo_parse,meta={'login_user':login_user})
-        yield request
+        #request = Request(url=user_weibo_page_url,callback=self.user_weibo_parse,meta={'login_user':login_user})
+        #yield request
+
+        for page_url in weibo_page_urls:
+            yield Request(url=page_url,callback=self.user_weibo_parse,meta={'login_user':login_user})
+
 
     # get weibo contents
     def user_weibo_parse(self,response):
@@ -210,8 +217,8 @@ class WeiboSpider(Spider):
             self.start_requests()
 
         weibo_dicts_list  =  self.get_weibo_by_html(response)
-        for weibo_item_dict in weibo_dicts_list:
-            yield WeiboItem(weibo_item_dict)
+        #for weibo_item_dict in weibo_dicts_list:
+        #    yield WeiboItem(weibo_item_dict)
 
 
     # load response in json form
@@ -239,12 +246,27 @@ class WeiboSpider(Spider):
 
         return weibo_urls
 
+    # extract link text from popularity issues block
     # get the number contained in the link(supports_link/comments_link/retweets_link)
-    def get_num_from_link(self,link):
-        regex_for_link   =   re.compile(r"*\((?P<number_in_link>\d+)\)")
-        number_in_link   =   regex_for_link.match(link).group('number_in_link')
-        return number_in_link
+    def get_num_from_block(self,block_name,action_type):
+        link_module   =   block_name.findAll('a',{'action-type':action_type},limit=1)
+        if link_module:
+            link_raw   =   [x for x in link_module[0].contents if type(x) == BeautifulSoupModule.NavigableString]
+            if link_raw:
+                link   =   link_raw[0].strip()
+            else:
+                link   =   ''
+        else:
+            link   =   ''
+        #print ' link here :  ',link,'\n'
 
+        regex_for_link   =   re.compile(r"^.+(?P<number_in_link>\d+).+$")
+        match_result     =   regex_for_link.match(link)
+        if match_result:
+            number_in_link   =  match_result.group('number_in_link')
+        else:
+            number_in_link   =  0
+        return number_in_link
 
 
 
@@ -290,7 +312,7 @@ class WeiboSpider(Spider):
     def get_weibo_by_html(self,response):
 
         login_user       =  response.meta['login_user']
-        # load response in json form
+        ## load response in json form
         html_block_soup  =  self.json_load_response(response)
 
         weibo_dicts_list =  []
@@ -298,9 +320,10 @@ class WeiboSpider(Spider):
         for weibo in html_block_soup.findAll('div',{'mid':True,'class':'WB_feed_type SW_fun S_line2 '}):
             i +=1
             weibo_id   =   weibo.get('mid')
-            print '\n\n Weibo[',str(i),'] weibo_id: ',weibo_id,'\n'
+            print '\n\n Weibo[',str(i),'] user_id: ',login_user['toCrawl_user_id'],'\n'
+            print ' Weibo[',str(i),'] weibo_id: ',weibo_id,'\n'
 
-            # load weibo contents
+            ## load weibo contents
             weibo_contents_block   =   weibo.findAll('div',{'class':'WB_text','node-type':'feed_list_content'},limit=1)
             if weibo_contents_block == None:
                 weibo_contents = ''
@@ -322,7 +345,7 @@ class WeiboSpider(Spider):
             print ' Weibo[',str(i),'] contents: ',weibo_contents,'\n'
 
 
-            # load creatTime
+            ## load creatTime
             weibo_time_block  =  weibo.findAll('a',{'class':'S_link2 WB_time','node-type':'feed_list_item_date'},limit=1)
             if weibo_time_block:
                 weibo_creat_time  =  weibo_time_block[0].get('title')
@@ -331,7 +354,7 @@ class WeiboSpider(Spider):
             print ' Weibo[',str(i),'] creat at: ',weibo_creat_time,'\n'
 
 
-            # load sourceApp
+            ## load sourceApp
             weibo_source_block  =  weibo.findAll('a',{'class':'S_link2','action-type':'app_source'},limit=1)
             if weibo_source_block:
                 weibo_app_source  =  weibo_source_block[0].string
@@ -340,7 +363,7 @@ class WeiboSpider(Spider):
             print ' Weibo[',str(i),'] app_source: ',weibo_app_source,'\n'
 
 
-            # load retweeted weibo if exists
+            ## load retweeted weibo if exists
             isRetweet  =  int(weibo.get('isforward','0'))
             print ' Weibo[',str(i),'] isRetweet: ',isRetweet,'\n'
 
@@ -365,13 +388,10 @@ class WeiboSpider(Spider):
                 retweetFromWeibo   =   retweetFromUserId   =   retweetFromUserNick   = ''
 
                 popularity_issues_block  =   weibo.findAll('div',{'class':'WB_handle'},limit=1)[0]
-                supports_link            =   popularity_issues_block.findAll('a',{'action-type':'fl-like'   },limit=1)[0]
-                comments_link            =   popularity_issues_block.findAll('a',{'action-type':'fl-comment'},limit=1)[0]
-                retweets_link            =   popularity_issues_block.findAll('a',{'action-type':'fl-forward'},limit=1)[0]
 
-                num_supports       =     self.get_num_from_link(supports_link)
-                num_comments       =     self.get_num_from_link(comments_link)
-                num_retweets       =     self.get_num_from_link(retweets_link) 
+                num_supports       =     self.get_num_from_block(popularity_issues_block,'fl_like')
+                num_comments       =     self.get_num_from_block(popularity_issues_block,'fl_comment')
+                num_retweets       =     self.get_num_from_block(popularity_issues_block,'fl_forward') 
 
             print ' Weibo[',str(i),'] retweetFromUser : ',retweetFromUserNick,'   ',retweetFromUserId,'\n'
             print ' Weibo[',str(i),'] retweetFromWeibo: ',retweetFromWeibo   ,'\n'
