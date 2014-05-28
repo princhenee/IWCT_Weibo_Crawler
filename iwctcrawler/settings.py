@@ -8,8 +8,8 @@
 
 BOT_NAME = 'iwctcrawler'
 
-SPIDER_MODULES = ['iwctcrawler.spiders']
-NEWSPIDER_MODULE = 'iwctcrawler.spiders'
+SPIDER_MODULES    =    ['iwctcrawler.spiders']
+NEWSPIDER_MODULE  =     'iwctcrawler.spiders'
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 #USER_AGENT = 'iwctcrawler (+http://www.yourdomain.com)'
@@ -17,12 +17,27 @@ NEWSPIDER_MODULE = 'iwctcrawler.spiders'
 
 
 # Redis Config
-REDIS_HOST="localhost"
-REDIS_PORT=6379
+REDIS_HOST   =   "localhost"
+REDIS_PORT   =   6379
 
 
-WEIBO_USER_NAME="iwct5307data@126.com"
-WEIBO_USER_PASSWORD="iwct5307"
+# sina_weibo login account Config
+WEIBO_USER_NAME        =    "iwct5307data@126.com"
+WEIBO_USER_PASSWORD    =    "iwct5307"
+
+
+# Item Pipeline
+ITEM_PIPELINES   =    [
+             'iwctcrawler.pipelines.IwctcrawlerPipeline',
+        ]
+
+# Mongodb Config
+MONGODB_SERVER             =      'localhost'
+MONGODB_PORT               =       27017
+MONGODB_DBNAME             =      'sina'
+MONGODB_USER_COLLECTION    =      'users'
+MONGODB_WEIBO_COLLECTION   =      'weibos'
+
 
 # schedular config
 #SCHEDULER_PERSIST = True
@@ -32,12 +47,12 @@ WEIBO_USER_PASSWORD="iwct5307"
 
 
 # pipelines Config
-ITEM_PIPELINES = ['iwctcrawler.pipelines.IwctcrawlerPipeline']
-DOWNLOAD_DELAY = 10
-TIME_DELTA = 30
+ITEM_PIPELINES =    ['iwctcrawler.pipelines.IwctcrawlerPipeline']
+DOWNLOAD_DELAY =    10
+TIME_DELTA     =    30
 
 
 # bootstrap from file (item.txt) or from db
-BOOTSTRAP = 'file'
+BOOTSTRAP      =   'file'
 
-FEED_LIMIT = 300000
+FEED_LIMIT     =    300000
