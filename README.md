@@ -11,6 +11,7 @@ This repository designing a sina weibo crawler is dedicated to the research prog
 * redis-py (tested on 2.4.9)
 * redis server (tested on 2.4-2.6)
 * BeautifulSoup 
+* pymongo 
 
 
 # Installation
