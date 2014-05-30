@@ -94,8 +94,11 @@ class WeiboSpider(Spider):
         self.start_urls = []
         self.login_url = self.weibo.login(self.username, self.password)
         # in this debug period, we apply a specified list of user_ids for test
-        self.id_toCrawl_list   = set(['3756315403','1018794373','1023892974','1031682077','1031827884',\
-                             '1016130663','1015699074','1016439911','1026341455','1028029113'])
+        # TODO
+        #self.id_toCrawl_list   = set(['3756315403','1018794373','1023892974','1031682077','1031827884',\
+        #                     '1016130663','1015699074','1016439911','1026341455','1028029113'])
+
+        self.id_toCrawl_list   = set(['1017820840','1017598042','1029636905','1028029113','1025934230'])
 
         if self.login_url:
             self.start_urls.append(self.login_url)
@@ -113,17 +116,19 @@ class WeiboSpider(Spider):
                 user_id = userinfo.get('uniqueid')
                 screen_name = userinfo.get('displayname')
                 log.msg('user login displayname: %s, user login id: %s' % (screen_name,user_id), level=log.INFO)
-                assert screen_name in self.username
+                #assert screen_name in self.username
                 self.logined = True
 
                 #mainpage_url = QueryFactory.mainpage_query(user_id)
                 # get 1 id from the list toCrawl
-                id_toCrawl = self.id_toCrawl_list.pop()
-                id_toCrawl = self.id_toCrawl_list.pop()
-                id_toCrawl = self.id_toCrawl_list.pop()
-                id_toCrawl = self.id_toCrawl_list.pop()
-                id_toCrawl = self.id_toCrawl_list.pop()
+                #id_toCrawl = self.id_toCrawl_list.pop()
+                #id_toCrawl = self.id_toCrawl_list.pop()
+                #id_toCrawl = self.id_toCrawl_list.pop()
+                #id_toCrawl = self.id_toCrawl_list.pop()
+                #id_toCrawl = self.id_toCrawl_list.pop()
 
+
+                id_toCrawl = self.id_toCrawl_list.pop()
                 trypage_url = QueryFactory.mainpage_query(id_toCrawl)
                 mainpage_request = Request(url=trypage_url,callback=self.mainpage_parse,meta={'user_id':id_toCrawl})
                 yield mainpage_request
@@ -134,6 +139,7 @@ class WeiboSpider(Spider):
 
     # parse mainpage_response
     def mainpage_parse(self,response):
+        #inspect_response(response,self)
         if response == None:
             yield self.start_requests()
 
@@ -143,14 +149,24 @@ class WeiboSpider(Spider):
         login_user['login_user_id']     =  self.get_property(response,"uid")
         login_user['page_id']           =  self.get_property(response,"page_id")
         login_user['pid']               =  self.get_property(response,"pid")
-        print '\n',login_user,'\n'
 
-        login_user_profile_url = QueryFactory.info_query(page_id=login_user['page_id'], pid=login_user['pid'])
-        log.msg('  user toCrawl id: %s, user login id: %s' \
-                % (login_user['toCrawl_user_id'],login_user['login_user_id']), level=log.INFO)
+        # if uid's mainpage does note exist, pass to next user in queue
+        if login_user['login_user_id'] is None or login_user['page_id'] is None or login_user['pid'] is None:
+            log.msg(' user toCrawl id:%s does not exist! Please try next one' % login_user['toCrawl_user_id'],level=log.DEBUG)
+            next_uid  =  self.forward_crawling()
+            if next_uid:
+                yield next_uid
+            else:
+                log.msg(' Queue is empty, task to terminate.',level=log.INFO)
+        else:
+            print '\n',login_user,'\n'
 
-        request = Request(url=login_user_profile_url,callback=self.user_info_parse,meta={'login_user':login_user})
-        yield request
+            login_user_profile_url = QueryFactory.info_query(page_id=login_user['page_id'], pid=login_user['pid'])
+            log.msg('  user toCrawl id: %s, user login id: %s' \
+                    % (login_user['toCrawl_user_id'],login_user['login_user_id']), level=log.INFO)
+
+            request = Request(url=login_user_profile_url,callback=self.user_info_parse,meta={'login_user':login_user})
+            yield request
 
     # parse user_info_page
     def user_info_parse(self,response):
@@ -215,8 +231,11 @@ class WeiboSpider(Spider):
 
         # get the tag containing the max num of page
         page_list_tag    =  html_block_soup.find('div',{'action-type':'feed_list_page_morelist'})
+        MAX_PAGE_NUM     =  100
         if page_list_tag:
             total_num_pages  =  int(re.search(r'\d+',page_list_tag.a.string).group(0))
+            if total_num_pages > MAX_PAGE_NUM:
+                total_num_pages   =   MAX_PAGE_NUM
         else:
             total_num_pages  =  1
 
@@ -232,8 +251,16 @@ class WeiboSpider(Spider):
         #request = Request(url=user_weibo_page_url,callback=self.user_weibo_parse,meta={'login_user':login_user})
         #yield request
 
+        # send requests contained in the weibo pages urls
         for page_url in weibo_page_urls:
             yield Request(url=page_url,callback=self.weibo_parse,meta={'login_user':login_user})
+
+        # TODO
+        next_uid  =  self.forward_crawling()
+        if next_uid:
+            yield next_uid
+        else:
+            log.msg(' Queue is empty, task to terminate.',level=log.INFO)
 
 
     # get weibo contents
@@ -262,7 +289,18 @@ class WeiboSpider(Spider):
     ################################################################################
     '''
 
-    # load response in json form
+    # pass to next uid Crawl if queue is not empty
+    def forward_crawling(self):
+        # request for crawling the next uid in queue
+        if len(self.id_toCrawl_list):
+            id_toCrawl = self.id_toCrawl_list.pop()
+            trypage_url = QueryFactory.mainpage_query(id_toCrawl)
+            mainpage_request = Request(url=trypage_url,callback=self.mainpage_parse,meta={'user_id':id_toCrawl})
+            return mainpage_request
+        else:
+            return None
+
+    # load response in json form and get the value of key:'data'
     # use BeautifulSoup to extract
     def json_load_response(self,response):
         jsonresponse     =  json.loads(response.body_as_unicode())
@@ -274,9 +312,13 @@ class WeiboSpider(Spider):
     def get_property(self,response,property_name):
         selector = Selector(response)
         # regular expression to extract CONFIG proerty
-        regex_term = re.compile(r"CONFIG\[\'"+property_name+r"\'\]=\'(.*)\'")
+        regex_CONFIG = re.compile(r"CONFIG\[\'"+property_name+r"\'\]=\'(.*)\'")
         # find the second script in head node which indicates properties
-        return selector.xpath('/html/head/script/text()').re(regex_term)[0]
+        # when the uid's mainpage exists
+        if selector.xpath('/html/head/script/text()').re(regex_CONFIG):
+            return selector.xpath('/html/head/script/text()').re(regex_CONFIG)[0]
+        else:
+            return None
 
     # wrap weibo pages url by the user_id and the total num of weibo pages
     def wrap_weibo_pages_urls(self, page_id, num_page):

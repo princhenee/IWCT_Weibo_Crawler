@@ -6,6 +6,9 @@
 #     http://doc.scrapy.org/en/latest/topics/settings.html
 #
 
+import sys
+sys.path.append('./misc')
+
 BOT_NAME = 'iwctcrawler'
 
 SPIDER_MODULES    =    ['iwctcrawler.spiders']
@@ -26,10 +29,6 @@ WEIBO_USER_NAME        =    "iwct5307data@126.com"
 WEIBO_USER_PASSWORD    =    "iwct5307"
 
 
-# Item Pipeline
-ITEM_PIPELINES   =    [
-             'iwctcrawler.pipelines.IwctcrawlerPipeline',
-        ]
 
 # Mongodb Config
 MONGODB_SERVER             =      'localhost'
@@ -44,6 +43,13 @@ MONGODB_WEIBO_COLLECTION   =      'weibos'
 #QUEUE_KEY = '%(spider)s:requests'
 #DUPEFILTER_KEY = '%(spider)s:dupefilter'
 #SCHEDULER = "iwctcrawler.redis.scheduler.Scheduler"
+
+
+# Download middlewares Proxy and Agents 
+#DOWNLOADER_MIDDLEWARES = {
+#        'middlewares.CustomHttpProxyMiddleware':543,
+#        'middlewares.CustomUserAgentMiddleware':545,
+#        }
 
 
 # pipelines Config
