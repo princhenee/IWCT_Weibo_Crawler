@@ -254,6 +254,7 @@ class WeiboSpider(Spider):
         # send requests contained in the weibo pages urls
         for page_url in weibo_page_urls:
             yield Request(url=page_url,callback=self.weibo_parse,meta={'login_user':login_user})
+<<<<<<< HEAD
 
         # TODO
         next_uid  =  self.forward_crawling()
@@ -261,6 +262,8 @@ class WeiboSpider(Spider):
             yield next_uid
         else:
             log.msg(' Queue is empty, task to terminate.',level=log.INFO)
+=======
+>>>>>>> 34fee2ea0acc2f437a2dfa3f4ac6e7bbf994a784
 
 
     # get weibo contents
@@ -275,20 +278,29 @@ class WeiboSpider(Spider):
             yield WeiboItem(weibo_item_dict)
 
 
+<<<<<<< HEAD
+=======
+
+
+>>>>>>> 34fee2ea0acc2f437a2dfa3f4ac6e7bbf994a784
 
 
 
 
 
 
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> 34fee2ea0acc2f437a2dfa3f4ac6e7bbf994a784
     '''
     ################################################################################
     Following are auxiliary tools to help previous parsers
     ################################################################################
     '''
 
+<<<<<<< HEAD
     # pass to next uid Crawl if queue is not empty
     def forward_crawling(self):
         # request for crawling the next uid in queue
@@ -301,6 +313,9 @@ class WeiboSpider(Spider):
             return None
 
     # load response in json form and get the value of key:'data'
+=======
+    # load response in json form
+>>>>>>> 34fee2ea0acc2f437a2dfa3f4ac6e7bbf994a784
     # use BeautifulSoup to extract
     def json_load_response(self,response):
         jsonresponse     =  json.loads(response.body_as_unicode())
