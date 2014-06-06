@@ -2,6 +2,7 @@
 import codecs
 import urllib
 import re, json
+import redis
 from datetime import datetime, timedelta
 import BeautifulSoup as BeautifulSoupModule
 from BeautifulSoup import BeautifulSoup
@@ -21,9 +22,6 @@ from iwctcrawler.sina import _epoch
 from iwctcrawler.items import UserProfileItem,WeiboItem
 
 
-# default Redis Config from settings
-REDIS_HOST=settings.get('REDIS_HOST')
-REDIS_PORT=settings.get('REDIS_PORT')
 
 class WeiboSpider(Spider):
     '''
@@ -87,18 +85,25 @@ class WeiboSpider(Spider):
     username = settings.get('WEIBO_USER_NAME')
     password = settings.get('WEIBO_USER_PASSWORD')
 
+    # default Redis Config from settings
+    REDIS_HOST=settings.get('REDIS_HOST','localhost')
+    REDIS_PORT=settings.get('REDIS_PORT',6379)
+
     # initialize login_url
     def __init__(self,name=None,*args,**kwargs):
         super(WeiboSpider,self).__init__(name,*args,**kwargs)
-        self.login = False
-        self.start_urls = []
-        self.login_url = self.weibo.login(self.username, self.password)
+        self.login        =   False
+        self.start_urls   =   []
+        self.login_url    =   self.weibo.login(self.username, self.password)
+
+        self.redis_server =   redis.Redis(self.REDIS_HOST,self.REDIS_PORT)
         # in this debug period, we apply a specified list of user_ids for test
         # TODO
         #self.id_toCrawl_list   = set(['3756315403','1018794373','1023892974','1031682077','1031827884',\
         #                     '1016130663','1015699074','1016439911','1026341455','1028029113'])
 
-        self.id_toCrawl_list   = set(['1017820840','1017598042','1029636905','1028029113','1025934230'])
+        #self.id_toCrawl_list   = set(['1017820840','1017598042','1029636905','1028029113','1025934230'])
+        #self.id_toCrawl_list   = set(['1017598042'])
 
         if self.login_url:
             self.start_urls.append(self.login_url)
@@ -128,10 +133,14 @@ class WeiboSpider(Spider):
                 #id_toCrawl = self.id_toCrawl_list.pop()
 
 
-                id_toCrawl = self.id_toCrawl_list.pop()
-                trypage_url = QueryFactory.mainpage_query(id_toCrawl)
-                mainpage_request = Request(url=trypage_url,callback=self.mainpage_parse,meta={'user_id':id_toCrawl})
-                yield mainpage_request
+                #id_toCrawl = self.id_toCrawl_list.pop()
+                ids_toCrawl_name = 'user_ids_toCrawl'
+                id_toCrawl  = self.redis_server.rpop(ids_toCrawl_name)
+                #id_toCrawl  =  '1017598042'
+                if id_toCrawl:
+                    trypage_url = QueryFactory.mainpage_query(id_toCrawl)
+                    mainpage_request = Request(url=trypage_url,callback=self.mainpage_parse,meta={'user_id':id_toCrawl})
+                    yield mainpage_request
 
             else:
                 self.log('login failed: errno=%s, reason=%s' % (data.get('errno', ''), data.get('reason', '')))
@@ -142,26 +151,30 @@ class WeiboSpider(Spider):
         #inspect_response(response,self)
         if response == None:
             yield self.start_requests()
+            exit(1)
 
         sel = Selector(response)
         login_user = {}
         login_user['toCrawl_user_id']   =  response.meta['user_id']
         login_user['login_user_id']     =  self.get_property(response,"uid")
         login_user['page_id']           =  self.get_property(response,"page_id")
-        login_user['pid']               =  self.get_property(response,"pid")
+        login_user['domain']            =  self.get_property(response,"domain")
 
         # if uid's mainpage does note exist, pass to next user in queue
-        if login_user['login_user_id'] is None or login_user['page_id'] is None or login_user['pid'] is None:
+        if login_user['login_user_id'] is None or login_user['page_id'] is None or login_user['domain'] is None:
             log.msg(' user toCrawl id:%s does not exist! Please try next one' % login_user['toCrawl_user_id'],level=log.DEBUG)
-            next_uid  =  self.forward_crawling()
+            next_uid  =  self.forward_crawling_redis()
             if next_uid:
-                yield next_uid
+                trypage_url = QueryFactory.mainpage_query(next_uid)
+                mainpage_request = Request(url=trypage_url,callback=self.mainpage_parse,meta={'user_id':next_uid})
+                yield mainpage_request
             else:
+                self.redis_server.lpush('user_ids_problem',next_uid)
                 log.msg(' Queue is empty, task to terminate.',level=log.INFO)
         else:
             print '\n',login_user,'\n'
 
-            login_user_profile_url = QueryFactory.info_query(page_id=login_user['page_id'], pid=login_user['pid'])
+            login_user_profile_url = QueryFactory.info_query(page_id=login_user['page_id'], domain=login_user['domain'])
             log.msg('  user toCrawl id: %s, user login id: %s' \
                     % (login_user['toCrawl_user_id'],login_user['login_user_id']), level=log.INFO)
 
@@ -209,7 +222,7 @@ class WeiboSpider(Spider):
         yield user
 
         # url to get total number of weibos' pages
-        user_weibo_page_url     =  QueryFactory.weibo_page_num_query(page_id = login_user['page_id'], page_num=1 )
+        user_weibo_page_url     =  QueryFactory.weibo_page_num_query(domain = login_user['domain'], page_id = login_user['page_id'], page_num=1 )
 
         # first request to get the total number of user weibos' pages
         request = Request(url=user_weibo_page_url,callback=self.weibo_pages_num,meta={'login_user':login_user})
@@ -240,31 +253,35 @@ class WeiboSpider(Spider):
             total_num_pages  =  1
 
         # warp weibo page urls to crawl
-        weibo_page_urls       =  self.wrap_weibo_pages_urls( page_id=login_user['page_id'], num_page=total_num_pages )
+        weibo_page_urls       =  self.wrap_weibo_pages_urls(domain=login_user['domain'], page_id=login_user['page_id'], num_page=total_num_pages )
 
         print '\n\n Number of user weibos pages: ',total_num_pages,'\n\n'
 
         # test part weibo parser
-        user_weibo_page_url   =  QueryFactory.weibo_js_query(page_id = login_user['page_id'], page_num=2 )[0]
+        user_weibo_page_url   =  QueryFactory.weibo_js_query(domain = login_user['domain'], page_id = login_user['page_id'], page_num=2 )[0]
 
         # first request to get the total number of user weibos' pages
         #request = Request(url=user_weibo_page_url,callback=self.user_weibo_parse,meta={'login_user':login_user})
         #yield request
 
+
         # send requests contained in the weibo pages urls
         for page_url in weibo_page_urls:
             yield Request(url=page_url,callback=self.weibo_parse,meta={'login_user':login_user})
-<<<<<<< HEAD
+
+        # insert id crawled into redis
+        ids_crawled_name   =   'user_ids_crawled'
+        self.redis_server.lpush(ids_crawled_name,login_user['toCrawl_user_id'])
 
         # TODO
-        next_uid  =  self.forward_crawling()
+        next_uid  =  self.forward_crawling_redis()
+
         if next_uid:
-            yield next_uid
+            trypage_url = QueryFactory.mainpage_query(next_uid)
+            mainpage_request = Request(url=trypage_url,callback=self.mainpage_parse,meta={'user_id':next_uid})
+            yield mainpage_request
         else:
             log.msg(' Queue is empty, task to terminate.',level=log.INFO)
-=======
->>>>>>> 34fee2ea0acc2f437a2dfa3f4ac6e7bbf994a784
-
 
     # get weibo contents
     def weibo_parse(self,response):
@@ -278,44 +295,38 @@ class WeiboSpider(Spider):
             yield WeiboItem(weibo_item_dict)
 
 
-<<<<<<< HEAD
-=======
-
-
->>>>>>> 34fee2ea0acc2f437a2dfa3f4ac6e7bbf994a784
 
 
 
 
 
 
-<<<<<<< HEAD
-
-
-=======
->>>>>>> 34fee2ea0acc2f437a2dfa3f4ac6e7bbf994a784
     '''
     ################################################################################
     Following are auxiliary tools to help previous parsers
     ################################################################################
     '''
 
-<<<<<<< HEAD
     # pass to next uid Crawl if queue is not empty
     def forward_crawling(self):
         # request for crawling the next uid in queue
         if len(self.id_toCrawl_list):
             id_toCrawl = self.id_toCrawl_list.pop()
-            trypage_url = QueryFactory.mainpage_query(id_toCrawl)
-            mainpage_request = Request(url=trypage_url,callback=self.mainpage_parse,meta={'user_id':id_toCrawl})
-            return mainpage_request
+            return id_toCrawl
+        else:
+            return None
+
+    # pass to next uid Crawl if redis-queue is not empty
+    def forward_crawling_redis(self):
+        # request for crawling the next uid in queue
+        ids_toCrawl_name   =   'user_ids_toCrawl'
+        next_uid   =   self.redis_server.rpop(ids_toCrawl_name)
+        if next_uid:
+            return next_uid
         else:
             return None
 
     # load response in json form and get the value of key:'data'
-=======
-    # load response in json form
->>>>>>> 34fee2ea0acc2f437a2dfa3f4ac6e7bbf994a784
     # use BeautifulSoup to extract
     def json_load_response(self,response):
         jsonresponse     =  json.loads(response.body_as_unicode())
@@ -336,11 +347,11 @@ class WeiboSpider(Spider):
             return None
 
     # wrap weibo pages url by the user_id and the total num of weibo pages
-    def wrap_weibo_pages_urls(self, page_id, num_page):
+    def wrap_weibo_pages_urls(self, domain,page_id, num_page):
         weibo_urls = set()
 
         for page in range(num_page):
-            weibo_urls=weibo_urls.union(QueryFactory.weibo_js_query( page_id=page_id,page_num=page+1))
+            weibo_urls=weibo_urls.union(QueryFactory.weibo_js_query( domain=domain,page_id=page_id,page_num=page+1))
 
         return weibo_urls
 
@@ -374,7 +385,12 @@ class WeiboSpider(Spider):
         tags_dict  =  {}
 
         # extract the html script block containing personal info
-        basic_info_block = selector.xpath('/html/script/text()').re(r'(\{.*\"domid\"\:\"Pl_Official_LeftInfo__26\".*\})')[0]
+        basic_info_block = selector.xpath('/html/script/text()').re(r'(\{.*\"domid\"\:\"Pl_Official_LeftInfo__(\d+)\".*\})')
+        if basic_info_block:
+            basic_info_block  =  basic_info_block[0]
+        else:
+            basic_info_block  =  selector.xpath('/html/script/text()').re(r'(\{.*\"domid\"\:\"Pl_Core_LeftTag__(\d+)\".*\})')[0]
+
         basic_info_block_html = json.loads(basic_info_block)['html']
         script_part_soup = BeautifulSoup(basic_info_block_html)
 
@@ -382,7 +398,12 @@ class WeiboSpider(Spider):
         #     property_name     : u"生日"
         #     property_content  : u"1990年04月19日"
         for record_line in script_part_soup.findAll('div',{"class":"pf_item clearfix"}):
-            property_name      =    record_line.find('div',{"class":"label S_txt2"}).string
+            property_name      =    record_line.find('div',{"class":"label S_txt2"})
+            if property_name :
+                property_name  =    property_name.string
+            else:
+                property_name  =    'unknown'
+
             property_content   =    record_line.find('div',{"class":"con"})
             # return a list of tags when meeting tags info
             # set content empty if no property_content with class "con" is matched
@@ -475,7 +496,7 @@ class WeiboSpider(Spider):
                     regex_for_user_id    =   re.compile(r'id=(?P<id_number>\d+)')
                     retweetFromUser_block=   weibo_retweet_block[0].findAll('a',{'node-type':'feed_list_originNick','class':'WB_name S_func3'},limit=1)[0]
 
-                    retweetFromWeibo     =   weibo.get('omid')
+                    retweetFromWeibo     =   weibo.get('omid','')
                     retweetFromUserId    =   regex_for_user_id.match(retweetFromUser_block.get('usercard')).group('id_number')
                     retweetFromUserNick  =   retweetFromUser_block.get('nick-name')
                 # case when the original weibo of current retweet is deleted
@@ -509,6 +530,7 @@ class WeiboSpider(Spider):
                                 'isRetweet'             :      isRetweet,
                                 'retweetFromUserId'     :      retweetFromUserId,
                                 'retweetFromUserNick'   :      retweetFromUserNick,
+                                'retweetFromWeibo'      :      retweetFromWeibo,
 
                                 'num_supports'          :      num_supports,
                                 'num_comments'          :      num_comments,

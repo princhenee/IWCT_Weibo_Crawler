@@ -22,16 +22,7 @@ NEWSPIDER_MODULE  =     'iwctcrawler.spiders'
 # Redis Config
 REDIS_HOST   =   "localhost"
 REDIS_PORT   =   6379
-<<<<<<< HEAD
 
-
-# sina_weibo login account Config
-WEIBO_USER_NAME        =    "iwct5307data@126.com"
-WEIBO_USER_PASSWORD    =    "iwct5307"
-
-
-
-=======
 
 
 # sina_weibo login account Config
@@ -44,7 +35,6 @@ ITEM_PIPELINES   =    [
              'iwctcrawler.pipelines.IwctcrawlerPipeline',
         ]
 
->>>>>>> 34fee2ea0acc2f437a2dfa3f4ac6e7bbf994a784
 # Mongodb Config
 MONGODB_SERVER             =      'localhost'
 MONGODB_PORT               =       27017
