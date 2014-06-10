@@ -22,6 +22,10 @@ NEWSPIDER_MODULE  =     'iwctcrawler.spiders'
 # Redis Config
 REDIS_HOST   =   "localhost"
 REDIS_PORT   =   6379
+REDIS_TOCRAWL_QUEUE          =    "user_ids_toCrawl"
+REDIS_CRAWLED_QUEUE          =    "user_ids_crawled"
+REDIS_PROCESSING_QUEUE       =    "user_ids_processing"
+REDIS_PROBLEM_QUEUE          =    "user_ids_problem"
 
 
 

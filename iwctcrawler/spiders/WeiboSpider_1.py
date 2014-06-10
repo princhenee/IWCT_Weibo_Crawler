@@ -45,7 +45,8 @@ class WeiboSpider(Spider):
     response of the request to the corresponding callback module.
 
 
-    @params 
+    @parameters
+    -----------
         name       :        the name of spider(obligated)
         weibo      :        an object of Weibo for authentification
         login      :        True/False status of login
@@ -56,7 +57,8 @@ class WeiboSpider(Spider):
 
 
 
-    @parsers:
+    @parsers
+    --------
         login_parse       :        get login info and set cookies
                                           and request mainpage according to uid
 
@@ -91,19 +93,30 @@ class WeiboSpider(Spider):
 
     # initialize login_url
     def __init__(self,name=None,*args,**kwargs):
+        '''Initialize weibospider
+
+        Parameters
+        ----------
+        login            :    login status (True/False)
+        start_urls       :    default urls to start crawling
+        login_url        :    url to login
+
+        redis_server     :    redis server Connected
+        ids_toCrawl_name :    name of toCrawl ids Queue
+        ids_crawled_name :    name of crawled ids Queue
+        ids_processing_name:  name of ids crawling now Queue
+        ids_problem_name :    name of ids sucked Queue
+        '''
         super(WeiboSpider,self).__init__(name,*args,**kwargs)
         self.login        =   False
         self.start_urls   =   []
         self.login_url    =   self.weibo.login(self.username, self.password)
 
         self.redis_server =   redis.Redis(self.REDIS_HOST,self.REDIS_PORT)
-        # in this debug period, we apply a specified list of user_ids for test
-        # TODO
-        #self.id_toCrawl_list   = set(['3756315403','1018794373','1023892974','1031682077','1031827884',\
-        #                     '1016130663','1015699074','1016439911','1026341455','1028029113'])
-
-        #self.id_toCrawl_list   = set(['1017820840','1017598042','1029636905','1028029113','1025934230'])
-        #self.id_toCrawl_list   = set(['1017598042'])
+        self.ids_toCrawl_name      =   settings.get('REDIS_TOCRAWL_QUEUE'   ,'user_ids_toCrawl'   )
+        self.ids_crawled_name      =   settings.get('REDIS_CRAWLED_QUEUE'   ,'user_ids_crawled'   )
+        self.ids_processing_name   =   settings.get('REDIS_PROCESSING_QUEUE','user_ids_processing')
+        self.ids_problem_name      =   settings.get('REDIS_PROBLEM_QUEUE'   ,'user_ids_problem'   )
 
         if self.login_url:
             self.start_urls.append(self.login_url)
@@ -124,20 +137,12 @@ class WeiboSpider(Spider):
                 #assert screen_name in self.username
                 self.logined = True
 
-                #mainpage_url = QueryFactory.mainpage_query(user_id)
-                # get 1 id from the list toCrawl
-                #id_toCrawl = self.id_toCrawl_list.pop()
-                #id_toCrawl = self.id_toCrawl_list.pop()
-                #id_toCrawl = self.id_toCrawl_list.pop()
-                #id_toCrawl = self.id_toCrawl_list.pop()
-                #id_toCrawl = self.id_toCrawl_list.pop()
-
-
-                #id_toCrawl = self.id_toCrawl_list.pop()
-                ids_toCrawl_name = 'user_ids_toCrawl'
-                id_toCrawl  = self.redis_server.rpop(ids_toCrawl_name)
-                #id_toCrawl  =  '1017598042'
+                # load first user_id toCrawl from the Queue
+                id_toCrawl  = self.redis_server.rpop(self.ids_toCrawl_name)
                 if id_toCrawl:
+                    # push  user_id toCrawl into the Processing Queue
+                    self.redis_server.lpush(self.ids_processing_name,id_toCrawl)
+
                     trypage_url = QueryFactory.mainpage_query(id_toCrawl)
                     mainpage_request = Request(url=trypage_url,callback=self.mainpage_parse,meta={'user_id':id_toCrawl})
                     yield mainpage_request
@@ -156,6 +161,7 @@ class WeiboSpider(Spider):
         sel = Selector(response)
         login_user = {}
         login_user['toCrawl_user_id']   =  response.meta['user_id']
+        login_user['toCrawl_user_nick'] =  self.get_property(response,"onick")
         login_user['login_user_id']     =  self.get_property(response,"uid")
         login_user['page_id']           =  self.get_property(response,"page_id")
         login_user['domain']            =  self.get_property(response,"domain")
@@ -165,11 +171,12 @@ class WeiboSpider(Spider):
             log.msg(' user toCrawl id:%s does not exist! Please try next one' % login_user['toCrawl_user_id'],level=log.DEBUG)
             next_uid  =  self.forward_crawling_redis()
             if next_uid:
-                trypage_url = QueryFactory.mainpage_query(next_uid)
-                mainpage_request = Request(url=trypage_url,callback=self.mainpage_parse,meta={'user_id':next_uid})
+                self.redis_server.lpush(self.ids_problem_name,next_uid)
+                self.redis_server.lrem(self.ids_processing_name,login_user['toCrawl_user_id'],num=-1)
+                trypage_url        =   QueryFactory.mainpage_query(next_uid)
+                mainpage_request   =   Request(url=trypage_url,callback=self.mainpage_parse,meta={'user_id':next_uid})
                 yield mainpage_request
             else:
-                self.redis_server.lpush('user_ids_problem',next_uid)
                 log.msg(' Queue is empty, task to terminate.',level=log.INFO)
         else:
             print '\n',login_user,'\n'
@@ -198,13 +205,14 @@ class WeiboSpider(Spider):
                        }
 
         if response == None:
-            self.start_requests()
+            yield self.start_requests()
+            exit(1)
 
         login_user = response.meta['login_user']
         user = UserProfileItem()
         # fulfill the user Item
-        user['user_id']          =  self.get_property(response,"oid")
-        user['screen_name']      =  self.get_property(response,"onick")
+        user['user_id']          =  login_user['toCrawl_user_id']
+        user['screen_name']      =  login_user['toCrawl_user_nick']
 
         user_tags_dict           =  self.get_userinfo_by_html(response)
 
@@ -233,10 +241,11 @@ class WeiboSpider(Spider):
     def weibo_pages_num(self,response):
         #inspect_response(response,self)
         if response == None:
-            self.start_requests()
+            yield self.start_requests()
+            exit(1)
 
         # pares the current js response
-        #self.user_weibo_parse(response)
+        self.weibo_parse(response)
 
         login_user       =  response.meta['login_user']
         # load response in json form
@@ -244,7 +253,7 @@ class WeiboSpider(Spider):
 
         # get the tag containing the max num of page
         page_list_tag    =  html_block_soup.find('div',{'action-type':'feed_list_page_morelist'})
-        MAX_PAGE_NUM     =  100
+        MAX_PAGE_NUM     =  10
         if page_list_tag:
             total_num_pages  =  int(re.search(r'\d+',page_list_tag.a.string).group(0))
             if total_num_pages > MAX_PAGE_NUM:
@@ -270,8 +279,8 @@ class WeiboSpider(Spider):
             yield Request(url=page_url,callback=self.weibo_parse,meta={'login_user':login_user})
 
         # insert id crawled into redis
-        ids_crawled_name   =   'user_ids_crawled'
-        self.redis_server.lpush(ids_crawled_name,login_user['toCrawl_user_id'])
+        self.redis_server.lrem(self.ids_processing_name,login_user['toCrawl_user_id'],num=-1)
+        self.redis_server.lpush(self.ids_crawled_name  ,login_user['toCrawl_user_id'])
 
         # TODO
         next_uid  =  self.forward_crawling_redis()
@@ -288,7 +297,8 @@ class WeiboSpider(Spider):
         #inspect_response(response,self)
 
         if response == None:
-            self.start_requests()
+            yield self.start_requests()
+            exit(1)
 
         weibo_dicts_list  =  self.get_weibo_by_html(response)
         for weibo_item_dict in weibo_dicts_list:
@@ -319,9 +329,10 @@ class WeiboSpider(Spider):
     # pass to next uid Crawl if redis-queue is not empty
     def forward_crawling_redis(self):
         # request for crawling the next uid in queue
-        ids_toCrawl_name   =   'user_ids_toCrawl'
-        next_uid   =   self.redis_server.rpop(ids_toCrawl_name)
+        next_uid   =   self.redis_server.rpop(self.ids_toCrawl_name)
+
         if next_uid:
+            self.redis_server.lpush(self.ids_processing_name,next_uid)
             return next_uid
         else:
             return None
@@ -377,7 +388,19 @@ class WeiboSpider(Spider):
             number_in_link   =  0
         return number_in_link
 
-
+    # convert all contents in a Content Tag into string
+    def stringfy_content_tag(self,content_tag):
+        if content_tag is None:
+            return ''
+        else:
+            content_elems    =   []
+            tag_contents     =   content_tag.contents
+            for elem in tag_contents:
+                if type(elem) is BeautifulSoupModule.Tag:
+                    content_elems.append(self.stringfy_content_tag(elem))
+                else:
+                    content_elems.append(elem.strip())
+            return ' '.join(content_elems)
 
     # get user profile property value from the user infopage
     def get_userinfo_by_html(self,response):
@@ -385,42 +408,27 @@ class WeiboSpider(Spider):
         tags_dict  =  {}
 
         # extract the html script block containing personal info
-        basic_info_block = selector.xpath('/html/script/text()').re(r'(\{.*\"domid\"\:\"Pl_Official_LeftInfo__(\d+)\".*\})')
+        basic_info_block = selector.xpath('/html/script/text()').re(r'(\{.*\"domid\"\:\"Pl_Official_LeftInfo__(\d+)\".*\})')\
+                        or selector.xpath('/html/script/text()').re(r'(\{.*\"domid\"\:\"Pl_Core_LeftTag__(\d+)\".*\})')
         if basic_info_block:
-            basic_info_block  =  basic_info_block[0]
+            basic_info_block_html = json.loads(basic_info_block[0])['html']
+            script_part_soup = BeautifulSoup(basic_info_block_html)
         else:
-            basic_info_block  =  selector.xpath('/html/script/text()').re(r'(\{.*\"domid\"\:\"Pl_Core_LeftTag__(\d+)\".*\})')[0]
+            script_part_soup = BeautifulSoup('')
 
-        basic_info_block_html = json.loads(basic_info_block)['html']
-        script_part_soup = BeautifulSoup(basic_info_block_html)
 
         # decompose the user profile html block into tags like 
         #     property_name     : u"生日"
         #     property_content  : u"1990年04月19日"
         for record_line in script_part_soup.findAll('div',{"class":"pf_item clearfix"}):
             property_name      =    record_line.find('div',{"class":"label S_txt2"})
-            if property_name :
-                property_name  =    property_name.string
-            else:
+            if property_name is None:
                 property_name  =    'unknown'
+                continue
+            property_name  =    property_name.string
 
-            property_content   =    record_line.find('div',{"class":"con"})
-            # return a list of tags when meeting tags info
-            # set content empty if no property_content with class "con" is matched
-            if property_content == None:
-                property_content  = ''
-            # return the property content of unicode
-            elif property_content.string:
-                property_content  = property_content.string.strip()
-            # check if there is a link
-            elif property_content.a.string:
-                property_content = property_content.a.string.strip()
-            else:
-                property_content = property_content.a.string
-                tags_elements    = record_line.find('div',{"class":"con"}).findAll('span',{"node-type":"tag"})
-                property_content = ''
-                for tags_elem in tags_elements:
-                    property_content = property_content + tags_elem.string + ' '
+            property_content_tag   =    record_line.find('div',{"class":"con"})
+            property_content       =    self.stringfy_content_tag(property_content_tag)
 
             tags_dict[property_name] = property_content
 
