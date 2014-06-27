@@ -253,7 +253,7 @@ class WeiboSpider(Spider):
 
         # get the tag containing the max num of page
         page_list_tag    =  html_block_soup.find('div',{'action-type':'feed_list_page_morelist'})
-        MAX_PAGE_NUM     =  10
+        MAX_PAGE_NUM     =  50
         if page_list_tag:
             total_num_pages  =  int(re.search(r'\d+',page_list_tag.a.string).group(0))
             if total_num_pages > MAX_PAGE_NUM:
