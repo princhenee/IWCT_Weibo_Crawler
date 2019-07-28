@@ -7,8 +7,9 @@
 from scrapy.item import Item, Field
 
 class UserProfileItem(Item):
-    # define the fields for your item here like:
-    # name = Field()
+    """define the fields for your item here like:
+    name = Field()
+    """
 
     user_id     =  Field()
 

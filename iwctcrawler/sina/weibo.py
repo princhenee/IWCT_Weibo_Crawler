@@ -68,11 +68,13 @@ class Weibo():
         urllib2.install_opener(opener)
 
     def _get_servertime(self, username):
-        url = 'http://login.sina.com.cn/sso/prelogin.php?entry=sso&callback=sinaSSOController.preloginCallBack&su=%s&rsakt=mod&client=ssologin.js(v1.4.4)' %username
-        data        = urllib2.urlopen(url).read()
-        p           = re.compile('\((.*)\)')
-        json_data   = p.search(data).group(1)
-        data        = json.loads(json_data)
+        url = 'http://login.sina.com.cn/sso/prelogin.php' + \
+                '?entry=sso&callback=sinaSSOController.preloginCallBack' + \
+                '&su=%s&rsakt=mod&client=ssologin.js(v1.4.4)' % username
+        data        =   urllib2.urlopen(url).read()
+        p           =   re.compile('\((.*)\)')
+        json_data   =   p.search(data).group(1)
+        data        =   json.loads(json_data)
         servertime  =   str(data['servertime'])
         nonce       =   data['nonce']
         pubkey      =   data['pubkey']
@@ -92,7 +94,8 @@ class Weibo():
         return username
 
     def login(self, username, pwd):
-        url = 'http://login.sina.com.cn/sso/login.php?client=ssologin.js(v1.4.4)'
+        url = 'http://login.sina.com.cn/sso/login.php' + \
+                '?client=ssologin.js(v1.4.4)'
         try:
             servertime, nonce, pubkey, rsakv = self._get_servertime(username)
         except:
